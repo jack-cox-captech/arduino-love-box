@@ -22,7 +22,7 @@ bool blinkState = false;
 int loopCount = 0;
 
 const int prPin = 0; // photo resistor pin in A0
-const int lightThreshold = 50;
+const int lightThreshold = 30; // below 30 turns off the display
 
 int lightVal;
 bool displayOn;
@@ -56,19 +56,16 @@ void setup() {
 
 }
 
-void testdrawcircle(void) {
-  display.clearDisplay();
-
-  for(int16_t i=0; i<max(display.width(),display.height())/2; i+=2) {
-    display.drawCircle(display.width()/2, display.height()/2, i, WHITE);
-    display.display();
-    delay(1);
-  }
-
-  delay(2000);
+void turnOffDisplay() {
+  Serial.println("turning off display");
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
+  displayOn = false; 
 }
-
-
+void turnOnDisplay() {
+  Serial.println("turning on display");
+  display.ssd1306_command(SSD1306_DISPLAYON);
+  displayOn = true;
+}
 
 void loop() {
   // put your main code here, to run repeatedly:
@@ -79,8 +76,7 @@ void loop() {
   
   if (lightVal > lightThreshold) {
     if (!displayOn) { // turn on the display
-      display.ssd1306_command(SSD1306_DISPLAYON);
-      displayOn = true; 
+      turnOnDisplay();
     }
 
     display.setCursor(0,14);
@@ -99,8 +95,7 @@ void loop() {
     Serial.println(lightVal);
   } else {
       if (displayOn) { // turn on the display
-        display.ssd1306_command(SSD1306_DISPLAYOFF);
-        displayOn = false; 
+        turnOffDisplay();
       }
   }
   display.display();
