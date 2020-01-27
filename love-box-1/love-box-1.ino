@@ -7,6 +7,8 @@
 #include <Bounce2.h>
 #include <WiFi101.h>
 
+#include <SD.h>
+
 // connectivity variables
 #include "arduino_secrets.h"
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
@@ -47,15 +49,22 @@ const int lightThreshold = 30; // below 30 turns off the display
 int lightVal;
 bool displayOn;
 
+// message state
+String lastMessage = "No Messages Yet";
+
+
+// power management
+
+unsigned long timeOfLastCheck = 0;
+const unsigned long pollTime = 20000;
+
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  while(!Serial); // wait for serial to init
- 
+  //while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
   
   Serial.println("Starting setup");
-  
-  delay(200);
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
@@ -63,20 +72,14 @@ void setup() {
   displayOn = true;
   
   display.display(); // show splashscreen
-//  delay(2000);
-//  display.clearDisplay();   // clears the screen and buffer
-//
-//  // draw a single pixel
-//  display.drawPixel(10, 10, WHITE);
-//  display.display();
-//  delay(2000);
-//  display.clearDisplay();
 
   display.setFont(&FreeMono12pt7b);
 
-  WiFiConnect();
+  timeOfLastCheck = 0; // make sure it polls on the first loop
 
-  MQTTConnect();
+  // TODO read message from non-volatile storage
+
+  displayMessage(lastMessage);
 
 }
 
@@ -93,42 +96,65 @@ void turnOnDisplay() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFiConnect();
-  }
-
-  if (!mqttClient.connected()) {
-    MQTTConnect();
-  }
-  mqttClient.poll();
-
+  unsigned long currentTime = millis();
   lightVal = analogRead(prPin);
-  display.clearDisplay();
   
-  if (lightVal > lightThreshold) {
-    if (!displayOn) { // turn on the display
-      turnOnDisplay();
-    }
-
-    display.setCursor(0,14);
-    display.setTextSize(1);
-    display.setTextWrap(true);
-    display.setTextColor(WHITE, BLACK);
-    display.print("hello world! ");
-    display.print(lightVal);
+  if ((currentTime > (timeOfLastCheck + pollTime)) || (timeOfLastCheck == 0)) { // check every X seconds
+    Serial.println("polling for data");
+      timeOfLastCheck = currentTime;
+      if (WiFi.status() != WL_CONNECTED) {
+        WiFiConnect();
+      }
     
-  
-    display.drawPixel(display.width()-1, display.height()-1, (blinkState ? WHITE : BLACK));
-    blinkState = (blinkState ? false : true);
+      if (!mqttClient.connected()) {
+        MQTTConnect();
+      }
+      mqttClient.poll();
+    
+      lightVal = analogRead(prPin);
+    
+      if (lightVal > lightThreshold) {
+        if (!displayOn) { // turn on the display
+          turnOnDisplay();
+        }
+    
+        display.drawPixel(display.width()-1, display.height()-1, (blinkState ? WHITE : BLACK));
+        blinkState = (blinkState ? false : true);
+      } else {
+          if (displayOn) { // turn on the display
+            turnOffDisplay();
+          }
+      }
+      display.display();
+
+      //WiFi.end();
   } else {
-      if (displayOn) { // turn on the display
-        turnOffDisplay();
+      if (lightVal > lightThreshold) {
+        if (!displayOn) { // turn on the display
+          turnOnDisplay();
+        }
+    
+        display.drawPixel(display.width()-1, display.height()-1, (blinkState ? WHITE : BLACK));
+        blinkState = (blinkState ? false : true);
+      } else {
+          if (displayOn) { // turn on the display
+            turnOffDisplay();
+          }
       }
   }
-  display.display();
-  delay(500);
+  
+  delay(200);
 
+}
+
+void displayMessage(String message) {
+  lastMessage = message;
+  display.clearDisplay();
+  display.setCursor(0,14);
+  display.setTextSize(1);
+  display.setTextWrap(true);
+  display.setTextColor(WHITE, BLACK);
+  display.print(lastMessage);
 }
 
 void WiFiConnect() {
@@ -170,7 +196,9 @@ void MQTTConnect() {
 
 
 void processMqttMessage(String topic, String message) {
-
+    if (topic == "love-box-1") {
+      displayMessage(message);
+    }
 }
 
 void onMqttMessage(int messageSize) {
@@ -200,4 +228,11 @@ void onMqttMessage(int messageSize) {
   processMqttMessage(topic, contents);
   Serial.println();
 
+}
+
+// Storage
+
+void openStorage() {
+
+  
 }
