@@ -1,7 +1,9 @@
+
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Adafruit_LEDBackpack.h>
 
 #include <ArduinoMqttClient.h>
 #include <Bounce2.h>
@@ -33,6 +35,9 @@ const char inTopic[] = "love-box-1";
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+Adafruit_8x8matrix frontMatrix = Adafruit_8x8matrix();
+
+
 #if (SSD1306_LCDHEIGHT != 64)
 #error("Height incorrect, please fix Adafruit_SSD1306.h!");
 #endif
@@ -49,6 +54,76 @@ const int lightThreshold = 30; // below 30 turns off the display
 int lightVal;
 bool displayOn;
 
+
+static const uint8_t PROGMEM
+  smile_bmp[] =
+  { B00111100,
+    B01000010,
+    B10100101,
+    B10000001,
+    B10100101,
+    B10011001,
+    B01000010,
+    B00111100 },
+  neutral_bmp[] =
+  { B00111100,
+    B01000010,
+    B10100101,
+    B10000001,
+    B10111101,
+    B10000001,
+    B01000010,
+    B00111100 },
+  frown_bmp[] =
+  { B00111100,
+    B01000010,
+    B10100101,
+    B10000001,
+    B10011001,
+    B10100101,
+    B01000010,
+    B00111100 },
+  fullgrid_bmp[] =
+  { B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111 },
+  emptygrid_bmp[] =
+  { B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000 },
+   heart1_bmp[] = 
+  { B00000000,
+    B01100110,
+    B11111111,
+    B11111111,
+    B01111110,
+    B00111100,
+    B00011000,
+    B00000000 },
+   heart2_bmp[] = 
+  { B00100100,
+    B01111110,
+    B11111111,
+    B11111111,
+    B11111111,
+    B01111110,
+    B00111100,
+    B00011000 }    
+    ;
+
+static const uint8_t PROGMEM*
+  heart_animation[] = { heart1_bmp, heart2_bmp };
+  
 // message state
 String lastMessage = "No Messages Yet";
 
@@ -68,6 +143,9 @@ void setup() {
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
+
+  frontMatrix.begin(0x70);  // pass in the address
+  
   // init done
   displayOn = true;
   
@@ -81,6 +159,24 @@ void setup() {
 
   displayMessage(lastMessage);
 
+  frontMatrix.clear();
+  frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
+  frontMatrix.writeDisplay();
+  delay(500);
+  frontMatrix.clear();
+  frontMatrix.writeDisplay();
+  
+
+//  while (1) {
+//    frontMatrix.clear();
+//    frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
+//    frontMatrix.writeDisplay();
+//    delay(550);
+//    frontMatrix.clear();
+//    frontMatrix.drawBitmap(0, 0, heart2_bmp, 8, 8, LED_ON);
+//    frontMatrix.writeDisplay();
+//    delay(550);
+//  }
 }
 
 void turnOffDisplay() {
@@ -182,8 +278,8 @@ void MQTTConnect() {
   while (!mqttClient.connect(broker, MQTT_PORT)) {
     Serial.print("MQTT connection failed! Error code = ");
     Serial.println(mqttClient.connectError());
-    // sleep 10 seconds and try again
-    delay(10000);
+    // sleep 1 seconds and try again
+    delay(1000);
   }
 
   // set the message receive callback
