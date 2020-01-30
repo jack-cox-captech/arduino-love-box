@@ -140,29 +140,29 @@ void setup() {
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
-  while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
+  //while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
   
   Serial.println("Starting setup");
 
-byte count = 0;
-for (byte i = 8; i < 120; i++)
-  {
-    Wire.beginTransmission (i);
-    if (Wire.endTransmission () == 0)
-      {
-      Serial.print ("Found address: ");
-      Serial.print (i, DEC);
-      Serial.print (" (0x");
-      Serial.print (i, HEX);
-      Serial.println (")");
-      count++;
-      delay (1);  // maybe unneeded?
-      } // end of good response
-  } // end of for loop
-  Serial.println ("Done.");
-  Serial.print ("Found ");
-  Serial.print (count, DEC);
-  Serial.println (" device(s).");
+//byte count = 0;
+//for (byte i = 8; i < 120; i++)
+//  {
+//    Wire.beginTransmission (i);
+//    if (Wire.endTransmission () == 0)
+//      {
+//      Serial.print ("Found address: ");
+//      Serial.print (i, DEC);
+//      Serial.print (" (0x");
+//      Serial.print (i, HEX);
+//      Serial.println (")");
+//      count++;
+//      delay (1);  // maybe unneeded?
+//      } // end of good response
+//  } // end of for loop
+//  Serial.println ("Done.");
+//  Serial.print ("Found ");
+//  Serial.print (count, DEC);
+//  Serial.println (" device(s).");
 
   
   
