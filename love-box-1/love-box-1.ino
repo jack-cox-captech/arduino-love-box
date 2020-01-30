@@ -126,6 +126,8 @@ static const uint8_t PROGMEM*
   
 // message state
 String lastMessage = "No Messages Yet";
+#define eeprom 0x50
+
 
 
 // power management
@@ -135,11 +137,34 @@ const unsigned long pollTime = 20000;
 
 
 void setup() {
+  Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
-  //while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
+  while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
   
   Serial.println("Starting setup");
+
+byte count = 0;
+for (byte i = 8; i < 120; i++)
+  {
+    Wire.beginTransmission (i);
+    if (Wire.endTransmission () == 0)
+      {
+      Serial.print ("Found address: ");
+      Serial.print (i, DEC);
+      Serial.print (" (0x");
+      Serial.print (i, HEX);
+      Serial.println (")");
+      count++;
+      delay (1);  // maybe unneeded?
+      } // end of good response
+  } // end of for loop
+  Serial.println ("Done.");
+  Serial.print ("Found ");
+  Serial.print (count, DEC);
+  Serial.println (" device(s).");
+
+  
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
@@ -177,6 +202,14 @@ void setup() {
 //    frontMatrix.writeDisplay();
 //    delay(550);
 //  }
+
+    unsigned int address = 0;
+    for(address=0;address<5;address++) {
+      writeEEPROM(eeprom, address, '2');
+    }
+    for(address=0; address<5; address++) {
+      Serial.print(readEEPROM(eeprom, address), HEX); 
+    }
 }
 
 void turnOffDisplay() {
@@ -332,3 +365,27 @@ void openStorage() {
 
   
 }
+
+
+//defines the writeEEPROM function
+void writeEEPROM(int deviceaddress, unsigned int eeaddress, byte data ) {
+  Wire.beginTransmission(deviceaddress);
+  Wire.write((int)(eeaddress >> 8)); //writes the MSB
+  Wire.write((int)(eeaddress & 0xFF)); //writes the LSB
+  Wire.write(data);
+  Wire.endTransmission();
+  delay(5);
+}
+
+//defines the readEEPROM function
+byte readEEPROM(int deviceaddress, unsigned int eeaddress ) {
+  byte rdata = 0xFF;
+  Wire.beginTransmission(deviceaddress);
+  Wire.write((int)(eeaddress >> 8)); //writes the MSB
+  Wire.write((int)(eeaddress & 0xFF)); //writes the LSB
+  Wire.endTransmission();
+  Wire.requestFrom(deviceaddress,1);
+  if (Wire.available()) 
+    rdata = Wire.read();
+  return rdata;
+} 
