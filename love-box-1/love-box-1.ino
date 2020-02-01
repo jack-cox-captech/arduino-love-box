@@ -12,6 +12,7 @@
 #include <SD.h>
 
 #include "constants.h"
+#include "message_type.h"
 
 // connectivity variables
 #include "arduino_secrets.h"
@@ -57,35 +58,32 @@ bool blinkState = false;
 int loopCount = 0;
 
 const int prPin = 0; // photo resistor pin in A0
-const int lightThreshold = 30; // below 30 turns off the display
+const int lightThreshold = 30; // below this turns off the display
 
 int lightVal;
 bool displayOn;
-
-static const uint8_t PROGMEM*
-  heart_animation[] = { heart1_bmp, heart2_bmp };
   
 // message state
 String lastMessage = "No Messages Yet";
 #define eeprom 0x50
-
+MessageList messageList = MessageList();
 
 
 // power management
 
 unsigned long timeOfLastCheck = 0;
-const unsigned long pollTime = 20000;
+const unsigned long pollTime = 5000; // 5 seconds
 
 
 void setup() {
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
-  while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
+  //while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
   
   Serial.println("Starting setup");
 
-  find_devices();
+  //find_devices();
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
@@ -94,40 +92,27 @@ void setup() {
   
   // init done
   displayOn = true;
-  
+
   display.display(); // show splashscreen
 
   display.setFont(&FreeMono9pt7b);
 
+  manageInternalDisplayState(analogRead(prPin));
+
   timeOfLastCheck = 0; // make sure it polls on the first loop
-
+  
+  stop_heart_animation();
+  
   // TODO read message from non-volatile storage
+  
+  Message msg = messageList.firstMessage();
 
-  displayMessage(lastMessage);
+  if (msg.message_length > 0) {
+    displayMessage(msg.message);
+  } else {
+    displayMessage("No Messages Yet");
+  }
 
-//  frontMatrix.clear();
-//  frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
-//  frontMatrix.setBrightness(0x01);
-//  frontMatrix.writeDisplay();
-//  int i = 0;
-//  int j = 0;
-//  for (j=0;j<100;j++) {
-//    for (i=0;i<16;i++) {
-//      frontMatrix.setBrightness(i);
-//      frontMatrix.writeDisplay();
-//      delay(100);
-//    }
-//    for (i=16;i>=0;i--) {
-//      frontMatrix.setBrightness(i);
-//      frontMatrix.writeDisplay();
-//      delay(100);
-//    }
-//  }
-//  delay(500);
-//  frontMatrix.clear();
-//  frontMatrix.writeDisplay();
-
-    start_heart_animation();
   
     unsigned int address = 0;
     for(address=0;address<5;address++) {
@@ -138,6 +123,16 @@ void setup() {
     }
 }
 
+void manageInternalDisplayState(int lightVal) {
+  
+    if ((lightVal > lightThreshold) && (!displayOn)) {
+      // turn on the display
+      turnOnDisplay();
+    } else if ((lightVal <= lightThreshold) && (displayOn)) {
+      // turn off the display
+      turnOffDisplay();
+    }
+}
 void turnOffDisplay() {
   Serial.println("turning off display");
   display.ssd1306_command(SSD1306_DISPLAYOFF);
@@ -149,11 +144,13 @@ void turnOnDisplay() {
   displayOn = true;
 }
 
+
 void loop() {
   // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
   lightVal = analogRead(prPin);
-
+  //Serial.println(lightVal);
+  
   continue_heart_animation();
   
   if ((currentTime > (timeOfLastCheck + pollTime)) || (timeOfLastCheck == 0)) { // check every X seconds
@@ -168,50 +165,24 @@ void loop() {
       }
       mqttClient.poll();
     
-      lightVal = analogRead(prPin);
-    
-      if (lightVal > lightThreshold) {
-        if (!displayOn) { // turn on the display
-          turnOnDisplay();
-        }
-    
-        display.drawPixel(display.width()-1, display.height()-1, (blinkState ? WHITE : BLACK));
-        blinkState = (blinkState ? false : true);
-      } else {
-          if (displayOn) { // turn on the display
-            turnOffDisplay();
-          }
-      }
-      display.display();
+      manageInternalDisplayState(lightVal);
 
-      //WiFi.end();
   } else {
-      if (lightVal > lightThreshold) {
-        if (!displayOn) { // turn on the display
-          turnOnDisplay();
-        }
-    
-        display.drawPixel(display.width()-1, display.height()-1, (blinkState ? WHITE : BLACK));
-        blinkState = (blinkState ? false : true);
-      } else {
-          if (displayOn) { // turn on the display
-            turnOffDisplay();
-          }
-      }
+      manageInternalDisplayState(lightVal);
   }
   
-  delay(200);
+  delay(20);
 
 }
 
 void displayMessage(String message) {
-  lastMessage = message;
   display.clearDisplay();
   display.setCursor(0,14);
   display.setTextSize(1);
   display.setTextWrap(true);
   display.setTextColor(WHITE, BLACK);
-  display.print(lastMessage);
+  display.print(message);
+  display.display();
 }
 
 void WiFiConnect() {
@@ -254,7 +225,11 @@ void MQTTConnect() {
 
 void processMqttMessage(String topic, String message) {
     if (topic == "love-box-1") {
+      messageList.addMessage(message);
       displayMessage(message);
+      if (!displayOn) {
+        start_heart_animation();
+      }
     }
 }
 
