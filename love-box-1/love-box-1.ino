@@ -105,40 +105,30 @@ void setup() {
 
   displayMessage(lastMessage);
 
-  frontMatrix.clear();
-  frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
-  frontMatrix.setBrightness(0x01);
-  frontMatrix.writeDisplay();
-  int i = 0;
-  int j = 0;
-  for (j=0;j<100;j++) {
-    for (i=0;i<16;i++) {
-      frontMatrix.setBrightness(i);
-      frontMatrix.writeDisplay();
-      delay(100);
-    }
-    for (i=16;i>=0;i--) {
-      frontMatrix.setBrightness(i);
-      frontMatrix.writeDisplay();
-      delay(100);
-    }
-  }
-  delay(500);
-  frontMatrix.clear();
-  frontMatrix.writeDisplay();
-  
-
-//  while (1) {
-//    frontMatrix.clear();
-//    frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
-//    frontMatrix.writeDisplay();
-//    delay(550);
-//    frontMatrix.clear();
-//    frontMatrix.drawBitmap(0, 0, heart2_bmp, 8, 8, LED_ON);
-//    frontMatrix.writeDisplay();
-//    delay(550);
+//  frontMatrix.clear();
+//  frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
+//  frontMatrix.setBrightness(0x01);
+//  frontMatrix.writeDisplay();
+//  int i = 0;
+//  int j = 0;
+//  for (j=0;j<100;j++) {
+//    for (i=0;i<16;i++) {
+//      frontMatrix.setBrightness(i);
+//      frontMatrix.writeDisplay();
+//      delay(100);
+//    }
+//    for (i=16;i>=0;i--) {
+//      frontMatrix.setBrightness(i);
+//      frontMatrix.writeDisplay();
+//      delay(100);
+//    }
 //  }
+//  delay(500);
+//  frontMatrix.clear();
+//  frontMatrix.writeDisplay();
 
+    start_heart_animation();
+  
     unsigned int address = 0;
     for(address=0;address<5;address++) {
       writeEEPROM(eeprom, address, '2');
@@ -163,6 +153,8 @@ void loop() {
   // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
   lightVal = analogRead(prPin);
+
+  continue_heart_animation();
   
   if ((currentTime > (timeOfLastCheck + pollTime)) || (timeOfLastCheck == 0)) { // check every X seconds
     Serial.println("polling for data");
