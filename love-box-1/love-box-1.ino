@@ -11,6 +11,8 @@
 
 #include <SD.h>
 
+#include "constants.h"
+
 // connectivity variables
 #include "arduino_secrets.h"
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
@@ -26,7 +28,7 @@ const char inTopic[] = "love-box-1";
 
 // display variables
 
-#include <Fonts/FreeMono12pt7b.h>
+#include <Fonts/FreeMono9pt7b.h>
 
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT 64
@@ -36,6 +38,12 @@ const char inTopic[] = "love-box-1";
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 Adafruit_8x8matrix frontMatrix = Adafruit_8x8matrix();
+
+#define DS_NOMSGS 0
+#define DS_UNREAD 1
+#define DS_READ   2
+
+
 
 
 #if (SSD1306_LCDHEIGHT != 64)
@@ -53,73 +61,6 @@ const int lightThreshold = 30; // below 30 turns off the display
 
 int lightVal;
 bool displayOn;
-
-
-static const uint8_t PROGMEM
-  smile_bmp[] =
-  { B00111100,
-    B01000010,
-    B10100101,
-    B10000001,
-    B10100101,
-    B10011001,
-    B01000010,
-    B00111100 },
-  neutral_bmp[] =
-  { B00111100,
-    B01000010,
-    B10100101,
-    B10000001,
-    B10111101,
-    B10000001,
-    B01000010,
-    B00111100 },
-  frown_bmp[] =
-  { B00111100,
-    B01000010,
-    B10100101,
-    B10000001,
-    B10011001,
-    B10100101,
-    B01000010,
-    B00111100 },
-  fullgrid_bmp[] =
-  { B11111111,
-    B11111111,
-    B11111111,
-    B11111111,
-    B11111111,
-    B11111111,
-    B11111111,
-    B11111111 },
-  emptygrid_bmp[] =
-  { B00000000,
-    B00000000,
-    B00000000,
-    B00000000,
-    B00000000,
-    B00000000,
-    B00000000,
-    B00000000 },
-   heart1_bmp[] = 
-  { B00000000,
-    B01100110,
-    B11111111,
-    B11111111,
-    B01111110,
-    B00111100,
-    B00011000,
-    B00000000 },
-   heart2_bmp[] = 
-  { B00100100,
-    B01111110,
-    B11111111,
-    B11111111,
-    B11111111,
-    B01111110,
-    B00111100,
-    B00011000 }    
-    ;
 
 static const uint8_t PROGMEM*
   heart_animation[] = { heart1_bmp, heart2_bmp };
@@ -140,31 +81,11 @@ void setup() {
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
-  //while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
+  while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
   
   Serial.println("Starting setup");
 
-//byte count = 0;
-//for (byte i = 8; i < 120; i++)
-//  {
-//    Wire.beginTransmission (i);
-//    if (Wire.endTransmission () == 0)
-//      {
-//      Serial.print ("Found address: ");
-//      Serial.print (i, DEC);
-//      Serial.print (" (0x");
-//      Serial.print (i, HEX);
-//      Serial.println (")");
-//      count++;
-//      delay (1);  // maybe unneeded?
-//      } // end of good response
-//  } // end of for loop
-//  Serial.println ("Done.");
-//  Serial.print ("Found ");
-//  Serial.print (count, DEC);
-//  Serial.println (" device(s).");
-
-  
+  find_devices();
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
@@ -176,7 +97,7 @@ void setup() {
   
   display.display(); // show splashscreen
 
-  display.setFont(&FreeMono12pt7b);
+  display.setFont(&FreeMono9pt7b);
 
   timeOfLastCheck = 0; // make sure it polls on the first loop
 
@@ -186,7 +107,22 @@ void setup() {
 
   frontMatrix.clear();
   frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
+  frontMatrix.setBrightness(0x01);
   frontMatrix.writeDisplay();
+  int i = 0;
+  int j = 0;
+  for (j=0;j<100;j++) {
+    for (i=0;i<16;i++) {
+      frontMatrix.setBrightness(i);
+      frontMatrix.writeDisplay();
+      delay(100);
+    }
+    for (i=16;i>=0;i--) {
+      frontMatrix.setBrightness(i);
+      frontMatrix.writeDisplay();
+      delay(100);
+    }
+  }
   delay(500);
   frontMatrix.clear();
   frontMatrix.writeDisplay();
