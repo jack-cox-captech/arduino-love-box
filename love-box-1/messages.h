@@ -1,6 +1,6 @@
 
-#ifndef MESSAGE_TYPE
-#define MESSAGE_TYPE 1
+#ifndef MESSAGES
+#define MESSAGES 1
 
 #include <Arduino.h>
 
@@ -47,6 +47,7 @@ class MessageList {
     Message addMessage(String messageText) {
       Message msg = Message();
       msg.real_message = true;
+      msg.unread = true;
       msg.message_length = messageText.length();
       msg.message = messageText;
 

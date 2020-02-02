@@ -12,7 +12,9 @@
 #include <SD.h>
 
 #include "constants.h"
-#include "message_type.h"
+#include "messages.h"
+
+//#define DEBUG   1
 
 // connectivity variables
 #include "arduino_secrets.h"
@@ -79,11 +81,15 @@ void setup() {
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
+
+#ifdef DEBUG
   while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
   
   Serial.println("Starting setup");
+  find_devices();
+#endif
 
-  //find_devices();
+
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
@@ -113,18 +119,21 @@ void setup() {
     displayMessage("No Messages Yet");
   }
 
-  
-    unsigned int address = 0;
-    for(address=0;address<5;address++) {
-      writeEEPROM(eeprom, address, '2');
-    }
-    for(address=0; address<5; address++) {
-      Serial.print(readEEPROM(eeprom, address), HEX); 
-    }
+//  
+//    unsigned int address = 0;
+//    for(address=0;address<5;address++) {
+//      writeEEPROM(eeprom, address, '2');
+//    }
+//    for(address=0; address<5; address++) {
+//      Serial.print(readEEPROM(eeprom, address), HEX); 
+//    }
 }
 
 void manageInternalDisplayState(int lightVal) {
+#ifdef DEBUG
     Serial.print("light val: "); Serial.println(lightVal);
+#endif 
+
     if ((lightVal > lightThreshold) && (!displayOn)) {
       // turn on the display
       turnOnDisplay();
@@ -200,7 +209,7 @@ void WiFiConnect() {
       delay(100);
       waitLoop += 100;
     }
-    delay(1000);
+    //delay(1000);
   }
   Serial.println("WiFi connect complete");
 }
