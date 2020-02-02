@@ -58,7 +58,7 @@ bool blinkState = false;
 int loopCount = 0;
 
 const int prPin = 0; // photo resistor pin in A0
-const int lightThreshold = 30; // below this turns off the display
+const int lightThreshold = 20; // below this turns off the display
 
 int lightVal;
 bool displayOn;
@@ -79,7 +79,7 @@ void setup() {
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
-  //while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
+  while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
   
   Serial.println("Starting setup");
 
@@ -124,7 +124,7 @@ void setup() {
 }
 
 void manageInternalDisplayState(int lightVal) {
-  
+    Serial.print("light val: "); Serial.println(lightVal);
     if ((lightVal > lightThreshold) && (!displayOn)) {
       // turn on the display
       turnOnDisplay();
@@ -171,7 +171,7 @@ void loop() {
       manageInternalDisplayState(lightVal);
   }
   
-  delay(20);
+  delay(200);
 
 }
 
