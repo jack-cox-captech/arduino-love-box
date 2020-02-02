@@ -61,6 +61,9 @@ int loopCount = 0;
 
 const int prPin = 0; // photo resistor pin in A0
 const int lightThreshold = 20; // below this turns off the display
+#define LID_OPEN    1
+#define LID_CLOSED  2
+int currentLidState = 0;
 
 int lightVal;
 bool displayOn;
@@ -97,13 +100,11 @@ void setup() {
   frontMatrix.begin(0x70);  // pass in the address
   
   // init done
-  displayOn = true;
+  currentLidState = determineLightState(analogRead(prPin));
 
   display.display(); // show splashscreen
 
   display.setFont(&FreeMono9pt7b);
-
-  manageInternalDisplayState(analogRead(prPin));
 
   timeOfLastCheck = 0; // make sure it polls on the first loop
   
@@ -129,36 +130,11 @@ void setup() {
 //    }
 }
 
-void manageInternalDisplayState(int lightVal) {
-#ifdef DEBUG
-    Serial.print("light val: "); Serial.println(lightVal);
-#endif 
-
-    if ((lightVal > lightThreshold) && (!displayOn)) {
-      // turn on the display
-      turnOnDisplay();
-    } else if ((lightVal <= lightThreshold) && (displayOn)) {
-      // turn off the display
-      turnOffDisplay();
-    }
-}
-void turnOffDisplay() {
-  Serial.println("turning off display");
-  display.ssd1306_command(SSD1306_DISPLAYOFF);
-  displayOn = false; 
-}
-void turnOnDisplay() {
-  Serial.println("turning on display");
-  display.ssd1306_command(SSD1306_DISPLAYON);
-  displayOn = true;
-}
-
 
 void loop() {
   // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
   lightVal = analogRead(prPin);
-  //Serial.println(lightVal);
   
   continue_heart_animation();
   
@@ -174,14 +150,43 @@ void loop() {
       }
       mqttClient.poll();
     
-      manageInternalDisplayState(lightVal);
+      triggerStateChangeOnLightValues(lightVal);
 
   } else {
-      manageInternalDisplayState(lightVal);
+      triggerStateChangeOnLightValues(lightVal);
   }
   
   delay(200);
 
+}
+
+
+void lidOpened() {
+  stop_heart_animation();
+}
+
+void lidClosed() {
+  stop_heart_animation();
+}
+
+void triggerStateChangeOnLightValues(int lightVal) {
+    int lidState = determineLightState(lightVal);
+    if (lidState != currentLidState) {
+      Serial.println("changing lid state");
+      currentLidState = lidState;
+      if (lidState == LID_OPEN) {
+        lidOpened();
+      } else {
+        lidClosed();
+      }
+    }
+}
+
+int determineLightState(int lightVal) {
+  if (lightVal > lightThreshold) {
+    return LID_OPEN;
+  }
+  return LID_CLOSED;
 }
 
 void displayMessage(String message) {
