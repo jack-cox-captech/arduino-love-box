@@ -13,8 +13,9 @@
 
 #include "constants.h"
 #include "messages.h"
+#include "memory_map.h"
 
-//#define DEBUG   1
+#define DEBUG   1
 
 // connectivity variables
 #include "arduino_secrets.h"
@@ -28,6 +29,7 @@ MqttClient mqttClient(wifiClient);
 
 const char broker[] = MQTT_BROKER;
 const char inTopic[] = "love-box-1";
+int mqtt_errors = 0;
 
 // display variables
 
@@ -79,8 +81,18 @@ MessageList messageList = MessageList();
 unsigned long timeOfLastCheck = 0;
 const unsigned long pollTime = 5000; // 5 seconds
 
+int resetPin = 7;
+void resetFunc(void) {
+
+  Serial.println("resetting");
+  delay(100);
+  digitalWrite(resetPin, LOW);
+}
+
 
 void setup() {
+  pinMode(resetPin, OUTPUT);
+  digitalWrite(resetPin, HIGH);
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
@@ -125,9 +137,13 @@ void setup() {
 //    for(address=0;address<5;address++) {
 //      writeEEPROM(eeprom, address, '2');
 //    }
-//    for(address=0; address<5; address++) {
-//      Serial.print(readEEPROM(eeprom, address), HEX); 
-//    }
+
+    unsigned char buf[12];
+    readEEPROM(eeprom, MESSAGES_START_ADDR, buf, 16);
+    for(int i=0;i<16;i++) {
+      Serial.print(buf[i], HEX);
+      Serial.print(':'); 
+    }
 }
 
 
@@ -220,14 +236,19 @@ void WiFiConnect() {
 }
 
 void MQTTConnect() {
+  mqtt_errors = 0;
   mqttClient.setUsernamePassword(MQTT_USERNAME, MQTT_PASSWORD);
   while (!mqttClient.connect(broker, MQTT_PORT)) {
     Serial.print("MQTT connection failed! Error code = ");
     Serial.println(mqttClient.connectError());
     // sleep 1 seconds and try again
+    mqtt_errors++;
+    if (mqtt_errors > 5) {
+      resetFunc();
+    }
     delay(1000);
   }
-
+  mqtt_errors = 0;
   // set the message receive callback
   mqttClient.onMessage(onMqttMessage);
 
@@ -239,7 +260,11 @@ void MQTTConnect() {
 
 void processMqttMessage(String topic, String message) {
     if (topic == "love-box-1") {
+      if (message == "reset") {
+        resetFunc();
+      }
       messageList.addMessage(message);
+      messageList.saveMessageList(eeprom);
       displayMessage(message);
       if (!displayOn) {
         start_heart_animation();
@@ -283,26 +308,94 @@ void openStorage() {
   
 }
 
+ 
+void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned int data_len) 
+{
+  // Uses Page Write for 24LC256
+  // Allows for 64 byte page boundary
+  // Splits string into max 16 byte writes
+  unsigned char i=0, counter=0;
+  unsigned int  address;
+  unsigned int  page_space;
+  unsigned int  page=0;
+  unsigned int  num_writes;
+  unsigned char first_write_size;
+  unsigned char last_write_size;  
+  unsigned char write_size;  
+  
+  // Calculate space available in first page
+  page_space = int(((eeaddress/64) + 1)*64)-eeaddress;
 
-//defines the writeEEPROM function
-void writeEEPROM(int deviceaddress, unsigned int eeaddress, byte data ) {
-  Wire.beginTransmission(deviceaddress);
-  Wire.write((int)(eeaddress >> 8)); //writes the MSB
-  Wire.write((int)(eeaddress & 0xFF)); //writes the LSB
-  Wire.write(data);
-  Wire.endTransmission();
-  delay(5);
+  // Calculate first write size
+  if (page_space>16) {
+    first_write_size=page_space-((page_space/16)*16);
+    if (first_write_size==0) { 
+      first_write_size=16;
+    }
+  } else { 
+     first_write_size=page_space; 
+  }
+  first_write_size=min(first_write_size, data_len);
+  
+Serial.print("first write size: ");Serial.println(first_write_size);
+
+
+  // calculate size of last write  
+  if (data_len>first_write_size) 
+     last_write_size = (data_len-first_write_size)%16;   
+  
+  // Calculate how many writes we need
+  if (data_len>first_write_size)
+     num_writes = ((data_len-first_write_size)/16)+2;
+  else
+     num_writes = 1;  
+     
+  i=0;   
+  address=eeaddress;
+  for(page=0;page<num_writes;page++) 
+  {
+     if(page==0) write_size=first_write_size;
+     else if(page==(num_writes-1)) write_size=last_write_size;
+     else write_size=16;
+
+#ifdef DEBUG
+  Serial.print("writing ");Serial.print(write_size);Serial.print(" bytes to eeprom at address: ");Serial.println(address);
+#endif
+  
+     Wire.beginTransmission(deviceaddress);
+     Wire.write((int)((address) >> 8));   // MSB
+     Wire.write((int)((address) & 0xFF)); // LSB
+     counter=0;
+     do{ 
+        Wire.write((byte) data[i]);
+#ifdef DEBUG
+    Serial.print(data[i], HEX);
+    Serial.print(':');
+#endif
+        i++;
+        counter++;
+     } while((counter<write_size));  
+     Wire.endTransmission();
+     address+=write_size;   // Increment address for next write
+     
+     delay(6);  // needs 5ms for page write
+#ifdef DEBUG
+  Serial.println(' ');
+#endif
+  }
 }
-
-//defines the readEEPROM function
-byte readEEPROM(int deviceaddress, unsigned int eeaddress ) {
-  byte rdata = 0xFF;
+ 
+void readEEPROM(int deviceaddress, unsigned int eeaddress,  
+                 unsigned char* data, unsigned int num_chars) 
+{
+  unsigned char i=0;
   Wire.beginTransmission(deviceaddress);
-  Wire.write((int)(eeaddress >> 8)); //writes the MSB
-  Wire.write((int)(eeaddress & 0xFF)); //writes the LSB
+  Wire.write((int)(eeaddress >> 8));   // MSB
+  Wire.write((int)(eeaddress & 0xFF)); // LSB
   Wire.endTransmission();
-  Wire.requestFrom(deviceaddress,1);
-  if (Wire.available()) 
-    rdata = Wire.read();
-  return rdata;
-} 
+ 
+  Wire.requestFrom(deviceaddress,num_chars);
+ 
+  while(Wire.available()) data[i++] = Wire.read();
+
+}
