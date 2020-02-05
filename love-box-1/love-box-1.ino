@@ -122,12 +122,16 @@ void setup() {
   
   stop_heart_animation();
   
-  // TODO read message from non-volatile storage
+  // read message from non-volatile storage
+  messageList.initializeFromEEPROM(eeprom);
   
   Message msg = messageList.firstMessage();
 
   if (msg.message_length > 0) {
     displayMessage(msg.message);
+    if (msg.unread) {
+      start_heart_animation();
+    }
   } else {
     displayMessage("No Messages Yet");
   }
