@@ -21,11 +21,13 @@ class Message  {
     bool real_message;
     short message_length;
     String message;
+    int memory_location;
 
     Message() {
       unread = false;
       real_message = false;
       message_length = -1;
+      memory_location = -1;
       message = "";
     }
 
@@ -56,20 +58,29 @@ class Message  {
     }
 
     int initializeFromEEPROM(int eeprom, int offset) {
-        readEEPROM(eeprom, offset, (unsigned char *) &unread, sizeof(unread));
-        offset += sizeof(unread);
-        readEEPROM(eeprom, offset, (unsigned char *) &message_length, sizeof(message_length));
-        offset += sizeof(message_length);
-        char *strBuffer = (char *) malloc(message_length);
-        readEEPROM(eeprom, offset, (unsigned char *) strBuffer, message_length);
-        message = String(strBuffer);
-        offset += message_length;
-        
-        free(strBuffer);
+      memory_location = offset;
+      real_message = true;
+      readEEPROM(eeprom, offset, (unsigned char *) &unread, sizeof(unread));
+      offset += sizeof(unread);
+      readEEPROM(eeprom, offset, (unsigned char *) &message_length, sizeof(message_length));
+      offset += sizeof(message_length);
+      char *strBuffer = (char *) malloc(message_length);
+      readEEPROM(eeprom, offset, (unsigned char *) strBuffer, message_length);
+      message = String(strBuffer);
+      offset += message_length;
+      
+      free(strBuffer);
 #ifdef DEBUG
   Serial.println(toString());
 #endif
         return offset;
+    }
+
+    void markAsRead(int eeprom) {
+      if (memory_location >= 0) {
+        unread = false;
+        writeEEPROM(eeprom, memory_location, (char *) &unread, sizeof(unread));
+      }
     }
 };
 
@@ -86,12 +97,8 @@ class MessageList {
     }
 
     Message firstMessage() {
-      int i;
-      for(i=0;i<current_length;i++) {
-        Message msg = messages[i];
-        if (msg.unread) {
-          return msg;
-        }
+      if (messages[0].real_message) {
+        return messages[0];
       }
       return Message();
     }

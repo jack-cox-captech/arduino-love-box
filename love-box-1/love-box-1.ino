@@ -7,7 +7,21 @@
 
 #include <ArduinoMqttClient.h>
 #include <Bounce2.h>
+
+#ifdef defined(ARDUINO_MKR1000)
 #include <WiFi101.h>
+
+#define PR_PIN    0
+#define RESET_PIN 7
+
+#else
+
+#include <WiFi.h>
+#define PR_PIN    0 /* TBD */
+#define RESET_PIN 7 /* TBD */
+
+
+#endif
 
 #include <SD.h>
 
@@ -15,7 +29,7 @@
 #include "messages.h"
 #include "memory_map.h"
 
-#define DEBUG   1
+//#define DEBUG   1
 
 // connectivity variables
 #include "arduino_secrets.h"
@@ -61,7 +75,7 @@ Adafruit_8x8matrix frontMatrix = Adafruit_8x8matrix();
 bool blinkState = false;
 int loopCount = 0;
 
-const int prPin = 0; // photo resistor pin in A0
+const int prPin = PR_PIN; // photo resistor pin in A0
 const int lightThreshold = 20; // below this turns off the display
 #define LID_OPEN    1
 #define LID_CLOSED  2
@@ -74,14 +88,14 @@ bool displayOn;
 String lastMessage = "No Messages Yet";
 #define eeprom 0x50
 MessageList messageList = MessageList();
-
+Message currentMessage;
 
 // power management
 
 unsigned long timeOfLastCheck = 0;
 const unsigned long pollTime = 5000; // 5 seconds
 
-int resetPin = 7;
+int resetPin = RESET_PIN;
 void resetFunc(void) {
 
   Serial.println("resetting");
@@ -125,11 +139,11 @@ void setup() {
   // read message from non-volatile storage
   messageList.initializeFromEEPROM(eeprom);
   
-  Message msg = messageList.firstMessage();
+  currentMessage = messageList.firstMessage();
 
-  if (msg.message_length > 0) {
-    displayMessage(msg.message);
-    if (msg.unread) {
+  if (currentMessage.message_length > 0) {
+    displayMessage(currentMessage.message);
+    if (currentMessage.unread) {
       start_heart_animation();
     }
   } else {
@@ -180,13 +194,21 @@ void loop() {
 
 }
 
+void markMessageAsRead(Message msg) {
+  if (msg.unread) { // only update if the message is unread
+    msg.unread = false;
+    currentMessage.markAsRead(eeprom);
+  }
+}
 
 void lidOpened() {
   stop_heart_animation();
+  markMessageAsRead(currentMessage);
 }
 
 void lidClosed() {
   stop_heart_animation();
+  markMessageAsRead(currentMessage);
 }
 
 void triggerStateChangeOnLightValues(int lightVal) {
