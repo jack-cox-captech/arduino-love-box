@@ -124,8 +124,11 @@ class MessageList {
       int i=0;
       unsigned int offset = MESSAGES_START_ADDR;
       readEEPROM(eeprom, offset, (unsigned char *) &current_length, sizeof(current_length));
-      if (current_length > max_length) {
+      if ((current_length > max_length) || (current_length < 0)) {
         Serial.println("invalid number of characters to read to restore messages");
+        current_length = 0;
+        // initialize memory
+        saveMessageList(eeprom);
         return; // don't read anymore
       }
       offset += sizeof(current_length);

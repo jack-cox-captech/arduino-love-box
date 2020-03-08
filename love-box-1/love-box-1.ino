@@ -8,20 +8,45 @@
 #include <ArduinoMqttClient.h>
 #include <Bounce2.h>
 
-#ifdef defined(ARDUINO_MKR1000)
-#include <WiFi101.h>
+#include <ArduinoJson.h>
+
+#define OLED_ADDR 0x3C
+#define LCD_ADDR  0x70
+
+#ifdef ARDUINO_SAMD_MKR1000
+#include <WiFi101.h> // MKR 1000
+#define PR_PIN    0
+#define RESET_PIN 7
+
+#endif
+
+#ifdef ARDUINO_SAMD_MKRWIFI1010
+#include <WiFiNINA.h> // MKR 1010
 
 #define PR_PIN    0
 #define RESET_PIN 7
 
-#else
+#endif
+#ifdef ARDUINO_ESP32_DEV
 
-#include <WiFi.h>
+#include <WiFi.h> // ESP32
 #define PR_PIN    0 /* TBD */
 #define RESET_PIN 7 /* TBD */
 
 
 #endif
+
+#ifdef ARDUINO_ESP8266_ESP12 // Huzzah board
+
+#include <ESP8266WiFi.h>
+
+#define PR_PIN    0 /* TBD */
+#define RESET_PIN 7 /* TBD */
+
+
+
+#endif
+
 
 #include <SD.h>
 
@@ -65,9 +90,9 @@ Adafruit_8x8matrix frontMatrix = Adafruit_8x8matrix();
 
 
 
-#if (SSD1306_LCDHEIGHT != 64)
-#error("Height incorrect, please fix Adafruit_SSD1306.h!");
-#endif
+//#if (SSD1306_LCDHEIGHT != 64)
+//#error("Height incorrect, please fix Adafruit_SSD1306.h!");
+//#endif
 
 #define WHITE SSD1306_WHITE
 #define BLACK SSD1306_BLACK
@@ -76,7 +101,7 @@ bool blinkState = false;
 int loopCount = 0;
 
 const int prPin = PR_PIN; // photo resistor pin in A0
-const int lightThreshold = 20; // below this turns off the display
+const int lightThreshold = 40; // below this turns off the display
 #define LID_OPEN    1
 #define LID_CLOSED  2
 int currentLidState = 0;
@@ -105,25 +130,18 @@ void resetFunc(void) {
 
 
 void setup() {
+  pinMode(prPin, INPUT);
   pinMode(resetPin, OUTPUT);
   digitalWrite(resetPin, HIGH);
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(9600);
 
-#ifdef DEBUG
-  while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
-  
-  Serial.println("Starting setup");
-  find_devices();
-#endif
-
-
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3D (for the 128x64)
+  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);  // initialize with the I2C addr 0x3D (for the 128x64)
 
-  frontMatrix.begin(0x70);  // pass in the address
+  frontMatrix.begin(LCD_ADDR);  // pass in the address
   
   // init done
   currentLidState = determineLightState(analogRead(prPin));
@@ -212,6 +230,7 @@ void lidClosed() {
 }
 
 void triggerStateChangeOnLightValues(int lightVal) {
+
     int lidState = determineLightState(lightVal);
     if (lidState != currentLidState) {
       Serial.println("changing lid state");
@@ -225,6 +244,9 @@ void triggerStateChangeOnLightValues(int lightVal) {
 }
 
 int determineLightState(int lightVal) {
+//#ifdef DEBUG
+//  Serial.print("determineLightState: light value: ");Serial.println(lightVal);
+//#endif
   if (lightVal > lightThreshold) {
     return LID_OPEN;
   }
@@ -286,14 +308,26 @@ void MQTTConnect() {
 
 void processMqttMessage(String topic, String message) {
     if (topic == "love-box-1") {
-      if (message == "reset") {
-        resetFunc();
+      StaticJsonDocument<2000> doc;
+
+      DeserializationError error = deserializeJson(doc, message);
+
+      // Test if parsing succeeds.
+      if (error) {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.c_str());
+        return;
       }
-      messageList.addMessage(message);
-      messageList.saveMessageList(eeprom);
-      displayMessage(message);
-      if (!displayOn) {
-        start_heart_animation();
+      if (doc["type"] == "reset") {
+        resetFunc();
+      } else if (doc["type"] == "message")  {
+        
+        messageList.addMessage(doc["text"]);
+        messageList.saveMessageList(eeprom);
+        displayMessage(doc["text"]);
+        if (!displayOn) {
+          start_heart_animation();
+        }
       }
     }
 }
@@ -361,10 +395,7 @@ void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned
   } else { 
      first_write_size=page_space; 
   }
-  first_write_size=min(first_write_size, data_len);
-  
-Serial.print("first write size: ");Serial.println(first_write_size);
-
+  first_write_size=min((unsigned int)first_write_size,(unsigned int) data_len);
 
   // calculate size of last write  
   if (data_len>first_write_size) 
@@ -384,9 +415,7 @@ Serial.print("first write size: ");Serial.println(first_write_size);
      else if(page==(num_writes-1)) write_size=last_write_size;
      else write_size=16;
 
-#ifdef DEBUG
-  Serial.print("writing ");Serial.print(write_size);Serial.print(" bytes to eeprom at address: ");Serial.println(address);
-#endif
+
   
      Wire.beginTransmission(deviceaddress);
      Wire.write((int)((address) >> 8));   // MSB
@@ -394,10 +423,7 @@ Serial.print("first write size: ");Serial.println(first_write_size);
      counter=0;
      do{ 
         Wire.write((byte) data[i]);
-#ifdef DEBUG
-    Serial.print(data[i], HEX);
-    Serial.print(':');
-#endif
+
         i++;
         counter++;
      } while((counter<write_size));  
@@ -405,9 +431,7 @@ Serial.print("first write size: ");Serial.println(first_write_size);
      address+=write_size;   // Increment address for next write
      
      delay(6);  // needs 5ms for page write
-#ifdef DEBUG
-  Serial.println(' ');
-#endif
+
   }
 }
  
