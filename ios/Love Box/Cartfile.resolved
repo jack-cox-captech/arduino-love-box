@@ -1,0 +1,6 @@
+github "daltoniam/Starscream" "3.0.2"
+github "daltoniam/common-crypto-spm" "1.1.0"
+github "daltoniam/zlib-spm" "1.1.0"
+github "emaloney/CleanroomLogger" "6.0.2"
+github "emqx/CocoaMQTT" "bd9d4ba2c77cf8f77eccbb6826eb6c8a875af4d3"
+github "robbiehanson/CocoaAsyncSocket" "7.6.3"

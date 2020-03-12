@@ -10,6 +10,8 @@
 
 #include <ArduinoJson.h>
 
+#include <ArduinoTrace.h>
+
 #define OLED_ADDR 0x3C
 #define LCD_ADDR  0x70
 
@@ -30,8 +32,8 @@
 #ifdef ARDUINO_ESP32_DEV
 
 #include <WiFi.h> // ESP32
-#define PR_PIN    0 /* TBD */
-#define RESET_PIN 7 /* TBD */
+#define PR_PIN    1 /* TBD */
+#define RESET_PIN 3 /* TBD */
 
 
 #endif
@@ -54,7 +56,7 @@
 #include "messages.h"
 #include "memory_map.h"
 
-//#define DEBUG   1
+#define DEBUG   1
 
 // connectivity variables
 #include "arduino_secrets.h"
@@ -67,7 +69,7 @@ WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
 
 const char broker[] = MQTT_BROKER;
-const char inTopic[] = "love-box-1";
+const char inTopic[] = "love-box-2";
 int mqtt_errors = 0;
 
 // display variables
@@ -86,13 +88,6 @@ Adafruit_8x8matrix frontMatrix = Adafruit_8x8matrix();
 #define DS_NOMSGS 0
 #define DS_UNREAD 1
 #define DS_READ   2
-
-
-
-
-//#if (SSD1306_LCDHEIGHT != 64)
-//#error("Height incorrect, please fix Adafruit_SSD1306.h!");
-//#endif
 
 #define WHITE SSD1306_WHITE
 #define BLACK SSD1306_BLACK
@@ -135,7 +130,15 @@ void setup() {
   digitalWrite(resetPin, HIGH);
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
-  Serial.begin(9600);
+  Serial.begin(115200);
+
+#ifdef DEBUG
+  while(!Serial); // wait for serial to init de-comment if you want prints to work during setup
+  
+  Serial.println("Starting setup");
+  find_devices();
+#endif
+  
 
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
@@ -167,12 +170,6 @@ void setup() {
   } else {
     displayMessage("No Messages Yet");
   }
-
-//  
-//    unsigned int address = 0;
-//    for(address=0;address<5;address++) {
-//      writeEEPROM(eeprom, address, '2');
-//    }
 
     unsigned char buf[12];
     readEEPROM(eeprom, MESSAGES_START_ADDR, buf, 16);
@@ -307,7 +304,7 @@ void MQTTConnect() {
 
 
 void processMqttMessage(String topic, String message) {
-    if (topic == "love-box-1") {
+  TRACE();
       StaticJsonDocument<2000> doc;
 
       DeserializationError error = deserializeJson(doc, message);
@@ -321,7 +318,7 @@ void processMqttMessage(String topic, String message) {
       if (doc["type"] == "reset") {
         resetFunc();
       } else if (doc["type"] == "message")  {
-        
+        Serial.println("Got message");
         messageList.addMessage(doc["text"]);
         messageList.saveMessageList(eeprom);
         displayMessage(doc["text"]);
@@ -329,10 +326,11 @@ void processMqttMessage(String topic, String message) {
           start_heart_animation();
         }
       }
-    }
+    
 }
 
 void onMqttMessage(int messageSize) {
+  TRACE();
   // we received a message, print out the topic and contents
   Serial.print("Received a message with topic '");
   String topic = mqttClient.messageTopic();
@@ -371,6 +369,7 @@ void openStorage() {
  
 void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned int data_len) 
 {
+  TRACE();
   // Uses Page Write for 24LC256
   // Allows for 64 byte page boundary
   // Splits string into max 16 byte writes
@@ -438,6 +437,7 @@ void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned
 void readEEPROM(int deviceaddress, unsigned int eeaddress,  
                  unsigned char* data, unsigned int num_chars) 
 {
+  TRACE();
   unsigned char i=0;
   Wire.beginTransmission(deviceaddress);
   Wire.write((int)(eeaddress >> 8));   // MSB

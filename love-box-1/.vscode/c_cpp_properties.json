@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "/Users/jcox/Library/Arduino15/packages/esp32/tools/**",
+                "/Users/jcox/Library/Arduino15/packages/esp32/hardware/esp32/1.0.4/**",
+                "${workspaceFolder}/**",
+                "/Users/jcox/Documents/Arduino/libraries/**"
+            ],
+            "defines": [],
+            "macFrameworkPath": [
+                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
+            ],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "clang-x64",
+            "forcedInclude": ["/Users/jcox/Library/Arduino15/packages/arduino/hardware/esp32/1.0.4/cores/esp32/Arduino.h"]
+        }
+    ],
+    "version": 4
+}
