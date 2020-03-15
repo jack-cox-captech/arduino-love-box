@@ -19,48 +19,8 @@
 #define LCD_ADDR  0x70
 #define EEPROM_ADDR    0x50
 
-#ifdef ARDUINO_SAMD_MKR1000
-#include <WiFi101.h> // MKR 1000
-#define PR_PIN    0
-#define RESET_PIN 7
 
-#define NEXT_BUTTON_PIN -1
-#define PRIOR_BUTTON_PIN  -1
-
-#endif
-
-#ifdef ARDUINO_SAMD_MKRWIFI1010
-#include <WiFiNINA.h> // MKR 1010
-
-#define PR_PIN    0
-#define RESET_PIN 7
-
-#define NEXT_BUTTON_PIN -1
-#define PRIOR_BUTTON_PIN  -1
-
-#endif
-#ifdef ARDUINO_ESP32_DEV
-
-#include <WiFi.h> // ESP32
-
-
-#define NEXT_BUTTON_PIN   27
-#define PRIOR_BUTTON_PIN  25
-
-#endif
-
-#ifdef ARDUINO_ESP8266_ESP12 // Huzzah board
-
-#include <ESP8266WiFi.h>
-
-#define PR_PIN    0 /* TBD */
-#define RESET_PIN 7 /* TBD */
-
-#define NEXT_BUTTON_PIN -1
-#define PRIOR_BUTTON_PIN  -1
-
-#endif
-
+#include "device_settings.h"
 
 #include <SD.h>
 
@@ -103,18 +63,9 @@ Adafruit_8x8matrix frontMatrix = Adafruit_8x8matrix();
 #define WHITE SSD1306_WHITE
 #define BLACK SSD1306_BLACK
 
-bool blinkState = false;
-int loopCount = 0;
-
-
-
-
 Bounce next_button = Bounce();
 Bounce prior_button = Bounce(); 
 
-int lightVal;
-bool displayOn;
-  
 // message state
 String lastMessage = "No Messages Yet";
 
@@ -228,6 +179,13 @@ void loop() {
     Serial.println("prior button pressed");
   }
 
+  // push and hold for 2 seconds both buttons at the same time to reset
+  if ((next_button.read()) && (prior_button.read())) {
+    if ((next_button.duration() > 2000) && (prior_button.duration() > 2000)) {
+      resetFunc();
+    }
+  }
+
 }
 
 void markMessageAsRead(Message msg) {
@@ -310,11 +268,8 @@ void processMqttMessage(String topic, String message) {
         messageList.addMessage(doc["text"]);
         messageList.saveMessageList(EEPROM_ADDR);
         displayMessage(doc["text"]);
-        if (!displayOn) {
-          start_heart_animation();
-        }
-      }
-    
+        start_heart_animation();
+      }   
 }
 
 void onMqttMessage(int messageSize) {
@@ -348,12 +303,6 @@ void onMqttMessage(int messageSize) {
 }
 
 // Storage
-
-void openStorage() {
-
-  
-}
-
  
 void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned int data_len) 
 {
