@@ -6,7 +6,7 @@
 #include "storage.h"
 #include "memory_map.h"
 
-#define MAX_MESSAGE_LIST_LENGTH 1
+#define MAX_MESSAGE_LIST_LENGTH 10
 
 #define DEBUG 1
 

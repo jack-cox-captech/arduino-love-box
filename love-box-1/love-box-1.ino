@@ -12,13 +12,20 @@
 
 #include <ArduinoTrace.h>
 
+
+#define DEBUG   1
+
 #define OLED_ADDR 0x3C
 #define LCD_ADDR  0x70
+#define EEPROM_ADDR    0x50
 
 #ifdef ARDUINO_SAMD_MKR1000
 #include <WiFi101.h> // MKR 1000
 #define PR_PIN    0
 #define RESET_PIN 7
+
+#define NEXT_BUTTON_PIN -1
+#define PRIOR_BUTTON_PIN  -1
 
 #endif
 
@@ -28,13 +35,17 @@
 #define PR_PIN    0
 #define RESET_PIN 7
 
+#define NEXT_BUTTON_PIN -1
+#define PRIOR_BUTTON_PIN  -1
+
 #endif
 #ifdef ARDUINO_ESP32_DEV
 
 #include <WiFi.h> // ESP32
-#define PR_PIN    1 /* TBD */
-#define RESET_PIN 3 /* TBD */
 
+
+#define NEXT_BUTTON_PIN   27
+#define PRIOR_BUTTON_PIN  25
 
 #endif
 
@@ -45,7 +56,8 @@
 #define PR_PIN    0 /* TBD */
 #define RESET_PIN 7 /* TBD */
 
-
+#define NEXT_BUTTON_PIN -1
+#define PRIOR_BUTTON_PIN  -1
 
 #endif
 
@@ -56,7 +68,6 @@
 #include "messages.h"
 #include "memory_map.h"
 
-#define DEBUG   1
 
 // connectivity variables
 #include "arduino_secrets.h"
@@ -95,18 +106,18 @@ Adafruit_8x8matrix frontMatrix = Adafruit_8x8matrix();
 bool blinkState = false;
 int loopCount = 0;
 
-const int prPin = PR_PIN; // photo resistor pin in A0
-const int lightThreshold = 40; // below this turns off the display
-#define LID_OPEN    1
-#define LID_CLOSED  2
-int currentLidState = 0;
+
+
+
+Bounce next_button = Bounce();
+Bounce prior_button = Bounce(); 
 
 int lightVal;
 bool displayOn;
   
 // message state
 String lastMessage = "No Messages Yet";
-#define eeprom 0x50
+
 MessageList messageList = MessageList();
 Message currentMessage;
 
@@ -115,19 +126,25 @@ Message currentMessage;
 unsigned long timeOfLastCheck = 0;
 const unsigned long pollTime = 5000; // 5 seconds
 
-int resetPin = RESET_PIN;
 void resetFunc(void) {
 
   Serial.println("resetting");
-  delay(100);
-  digitalWrite(resetPin, LOW);
+   delay(100);
+#ifdef ARDUINO_ESP32_DEV
+  ESP.restart();
+#else
+  digitalWrite(RESET_PIN, LOW);
+#endif
+
 }
 
 
 void setup() {
-  pinMode(prPin, INPUT);
-  pinMode(resetPin, OUTPUT);
-  digitalWrite(resetPin, HIGH);
+#ifdef RESET_PIN
+  // only do this if we are doing a hardware reset
+  pinMode(RESET_PIN, OUTPUT);
+  digitalWrite(RESET_PIN, HIGH);
+#endif
   Wire.begin(); // create Wire object for later writing to eeprom
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -139,15 +156,15 @@ void setup() {
   find_devices();
 #endif
   
-
+  next_button.attach(NEXT_BUTTON_PIN,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT mode
+  next_button.interval(25); 
+  prior_button.attach(PRIOR_BUTTON_PIN,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT mode
+  prior_button.interval(25); 
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);  // initialize with the I2C addr 0x3D (for the 128x64)
 
   frontMatrix.begin(LCD_ADDR);  // pass in the address
-  
-  // init done
-  currentLidState = determineLightState(analogRead(prPin));
 
   display.display(); // show splashscreen
 
@@ -158,7 +175,7 @@ void setup() {
   stop_heart_animation();
   
   // read message from non-volatile storage
-  messageList.initializeFromEEPROM(eeprom);
+  messageList.initializeFromEEPROM(EEPROM_ADDR);
   
   currentMessage = messageList.firstMessage();
 
@@ -172,7 +189,7 @@ void setup() {
   }
 
     unsigned char buf[12];
-    readEEPROM(eeprom, MESSAGES_START_ADDR, buf, 16);
+    readEEPROM(EEPROM_ADDR, MESSAGES_START_ADDR, buf, 16);
     for(int i=0;i<16;i++) {
       Serial.print(buf[i], HEX);
       Serial.print(':'); 
@@ -183,7 +200,9 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
-  lightVal = analogRead(prPin);
+
+  next_button.update(); // Update status of navigation buttons
+  prior_button.update();
   
   continue_heart_animation();
   
@@ -198,57 +217,26 @@ void loop() {
         MQTTConnect();
       }
       mqttClient.poll();
-    
-      triggerStateChangeOnLightValues(lightVal);
 
-  } else {
-      triggerStateChangeOnLightValues(lightVal);
   }
-  
-  delay(200);
+  if (next_button.rose()) {
+    // next button pressed, record current message as read and go to next one
+    Serial.println("next button pressed");
+  }
+  if (prior_button.rose()) {
+    // prior button pressed record current message as read and go to prior one
+    Serial.println("prior button pressed");
+  }
 
 }
 
 void markMessageAsRead(Message msg) {
   if (msg.unread) { // only update if the message is unread
     msg.unread = false;
-    currentMessage.markAsRead(eeprom);
+    currentMessage.markAsRead(EEPROM_ADDR);
   }
 }
 
-void lidOpened() {
-  stop_heart_animation();
-  markMessageAsRead(currentMessage);
-}
-
-void lidClosed() {
-  stop_heart_animation();
-  markMessageAsRead(currentMessage);
-}
-
-void triggerStateChangeOnLightValues(int lightVal) {
-
-    int lidState = determineLightState(lightVal);
-    if (lidState != currentLidState) {
-      Serial.println("changing lid state");
-      currentLidState = lidState;
-      if (lidState == LID_OPEN) {
-        lidOpened();
-      } else {
-        lidClosed();
-      }
-    }
-}
-
-int determineLightState(int lightVal) {
-//#ifdef DEBUG
-//  Serial.print("determineLightState: light value: ");Serial.println(lightVal);
-//#endif
-  if (lightVal > lightThreshold) {
-    return LID_OPEN;
-  }
-  return LID_CLOSED;
-}
 
 void displayMessage(String message) {
   display.clearDisplay();
@@ -320,7 +308,7 @@ void processMqttMessage(String topic, String message) {
       } else if (doc["type"] == "message")  {
         Serial.println("Got message");
         messageList.addMessage(doc["text"]);
-        messageList.saveMessageList(eeprom);
+        messageList.saveMessageList(EEPROM_ADDR);
         displayMessage(doc["text"]);
         if (!displayOn) {
           start_heart_animation();
