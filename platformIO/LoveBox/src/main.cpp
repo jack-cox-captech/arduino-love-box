@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 
 #include <SPI.h>
 #include <Wire.h>
@@ -12,14 +14,12 @@
 
 #include <ArduinoTrace.h>
 
-#include <PrintEx.h>
 
 #define DEBUG   1
 
 #define OLED_ADDR 0x3C
 #define LCD_ADDR  0x70
 #define EEPROM_ADDR    0x50
-
 
 #include "device_settings.h"
 
@@ -28,6 +28,7 @@
 #include "constants.h"
 #include "messages.h"
 #include "memory_map.h"
+#include "heart_animation.h"
 
 
 // connectivity variables
@@ -78,18 +79,17 @@ Message currentMessage;
 unsigned long timeOfLastCheck = 0;
 const unsigned long pollTime = 5000; // 5 seconds
 
-void resetFunc(void) {
-
-  Serial.println("resetting");
-   delay(100);
-#ifdef ARDUINO_ESP32_DEV
-  ESP.restart();
-#else
-  digitalWrite(RESET_PIN, LOW);
-#endif
-
-}
-
+void resetFunc();
+void find_devices();
+void displayMessage(String message);
+void readEEPROM(int deviceaddress, unsigned int eeaddress,  
+                 unsigned char* data, unsigned int num_chars);
+void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned int data_len);
+void markMessageAsRead(Message msg);
+void WiFiConnect();
+void MQTTConnect();
+void onMqttMessage(int messageSize);
+void processMqttMessage(String topic, String message);
 
 void setup() {
 #ifdef RESET_PIN
@@ -107,7 +107,8 @@ void setup() {
   Serial.println("Starting setup");
   find_devices();
 #endif
-  
+
+
   next_button.attach(NEXT_BUTTON_PIN,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT mode
   next_button.interval(25); 
   prior_button.attach(PRIOR_BUTTON_PIN,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT mode
@@ -124,7 +125,7 @@ void setup() {
 
   timeOfLastCheck = 0; // make sure it polls on the first loop
   
-  stop_heart_animation();
+  stop_heart_animation(frontMatrix);
   
   // read message from non-volatile storage
   messageList.initializeFromEEPROM(EEPROM_ADDR);
@@ -134,7 +135,7 @@ void setup() {
   if (currentMessage.message_length > 0) {
     displayMessage(currentMessage.message);
     if (currentMessage.unread) {
-      start_heart_animation();
+      start_heart_animation(frontMatrix);
     }
   } else {
     displayMessage("No Messages Yet");
@@ -146,17 +147,18 @@ void setup() {
       Serial.print(buf[i], HEX);
       Serial.print(':'); 
     }
+
 }
 
-
 void loop() {
+  // put your main code here, to run repeatedly:
   // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
 
   next_button.update(); // Update status of navigation buttons
   prior_button.update();
   
-  continue_heart_animation();
+  continue_heart_animation(frontMatrix);
   
   if ((currentTime > (timeOfLastCheck + pollTime)) || (timeOfLastCheck == 0)) { // check every X seconds
     Serial.println("polling for data");
@@ -188,7 +190,6 @@ void loop() {
   }
 
 }
-
 void markMessageAsRead(Message msg) {
   if (msg.unread) { // only update if the message is unread
     msg.unread = false;
@@ -206,6 +207,44 @@ void displayMessage(String message) {
   display.print(message);
   display.display();
 }
+
+
+void resetFunc(void) {
+
+  Serial.println("resetting");
+   delay(100);
+#ifdef ARDUINO_ESP32_DEV
+  ESP.restart();
+#else
+  digitalWrite(RESET_PIN, LOW);
+#endif
+
+}
+
+
+void find_devices() {
+  byte count = 0;
+  for (byte i = 8; i < 120; i++)
+    {
+      Wire.beginTransmission (i);
+      if (Wire.endTransmission () == 0)
+        {
+        Serial.print ("Found address: ");
+        Serial.print (i, DEC);
+        Serial.print (" (0x");
+        Serial.print (i, HEX);
+        Serial.println (")");
+        count++;
+        delay (1);  // maybe unneeded?
+        } // end of good response
+    } // end of for loop
+    Serial.println ("Done.");
+    Serial.print ("Found ");
+    Serial.print (count, DEC);
+    Serial.println (" device(s).");
+
+}
+
 
 void WiFiConnect() {
   // attempt to connect to WiFi network:
@@ -269,9 +308,11 @@ void processMqttMessage(String topic, String message) {
         messageList.addMessage(doc["text"]);
         messageList.saveMessageList(EEPROM_ADDR);
         displayMessage(doc["text"]);
-        start_heart_animation();
+        start_heart_animation(frontMatrix);
       }   
 }
+
+
 
 void onMqttMessage(int messageSize) {
   TRACE();
@@ -302,6 +343,7 @@ void onMqttMessage(int messageSize) {
   Serial.println();
 
 }
+
 
 // Storage
  
