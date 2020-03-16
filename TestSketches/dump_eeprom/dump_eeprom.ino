@@ -19,7 +19,7 @@ void setup() {
   myPrint.printf("Starting setup\n");
   delay(1000);
   int startPage = 0x0400 / 16;
-  int endPage = startPage + 10;
+  int endPage = startPage + 100;
   for(int page=startPage;page<endPage;page++) {
       readEEPROM(eeprom, page*16, buffer, 16);
       myPrint.printf("%04x : ", page*16);
