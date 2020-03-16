@@ -1,5 +1,6 @@
 #include <Arduino.h>
 
+#include "device_settings.h"
 
 #include <SPI.h>
 #include <Wire.h>
@@ -21,7 +22,7 @@
 #define LCD_ADDR  0x70
 #define EEPROM_ADDR    0x50
 
-#include "device_settings.h"
+
 
 #include <SD.h>
 
@@ -90,6 +91,8 @@ void WiFiConnect();
 void MQTTConnect();
 void onMqttMessage(int messageSize);
 void processMqttMessage(String topic, String message);
+void handleNextButton();
+void handlePriorButton();
 
 void setup() {
 #ifdef RESET_PIN
@@ -107,6 +110,9 @@ void setup() {
   Serial.println("Starting setup");
   find_devices();
 #endif
+
+// uncomment this to reset eeprom message MessageList
+//  messageList.saveMessageList(EEPROM_ADDR);
 
 
   next_button.attach(NEXT_BUTTON_PIN,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT mode
@@ -130,7 +136,7 @@ void setup() {
   // read message from non-volatile storage
   messageList.initializeFromEEPROM(EEPROM_ADDR);
   
-  currentMessage = messageList.firstMessage();
+  currentMessage = messageList.getOldestUnreadMessage();
 
   if (currentMessage.message_length > 0) {
     displayMessage(currentMessage.message);
@@ -140,19 +146,9 @@ void setup() {
   } else {
     displayMessage("No Messages Yet");
   }
-
-    unsigned char buf[12];
-    readEEPROM(EEPROM_ADDR, MESSAGES_START_ADDR, buf, 16);
-    for(int i=0;i<16;i++) {
-      Serial.print(buf[i], HEX);
-      Serial.print(':'); 
-    }
-
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  // put your main code here, to run repeatedly:
   unsigned long currentTime = millis();
 
   next_button.update(); // Update status of navigation buttons
@@ -190,6 +186,17 @@ void loop() {
   }
 
 }
+
+void handleNextButton() {
+  markMessageAsRead(currentMessage);
+
+
+}
+
+void handlePriorButton() {
+
+}
+
 void markMessageAsRead(Message msg) {
   if (msg.unread) { // only update if the message is unread
     msg.unread = false;
@@ -305,7 +312,7 @@ void processMqttMessage(String topic, String message) {
         resetFunc();
       } else if (doc["type"] == "message")  {
         Serial.println("Got message");
-        messageList.addMessage(doc["text"]);
+        messageList.addMessage(doc["message_id"], doc["message_time"], doc["text"]);
         messageList.saveMessageList(EEPROM_ADDR);
         displayMessage(doc["text"]);
         start_heart_animation(frontMatrix);
@@ -359,7 +366,7 @@ void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned
   unsigned int  page=0;
   unsigned int  num_writes;
   unsigned char first_write_size;
-  unsigned char last_write_size;  
+  unsigned char last_write_size=0;  
   unsigned char write_size;  
   
   // Calculate space available in first page
@@ -390,9 +397,12 @@ void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned
   address=eeaddress;
   for(page=0;page<num_writes;page++) 
   {
-     if(page==0) write_size=first_write_size;
-     else if(page==(num_writes-1)) write_size=last_write_size;
-     else write_size=16;
+     if(page==0) 
+      write_size=first_write_size;
+     else if(page==(num_writes-1)) 
+      write_size=last_write_size;
+     else 
+      write_size=16;
 
 
   

@@ -37,7 +37,10 @@ void continue_heart_animation(Adafruit_8x8matrix frontMatrix) {
     unsigned long current_millis = millis();
     if (next_step_time <= current_millis) { // wait millis_per_step before changing the brightness
       animation_step++;
+      frontMatrix.clear();
+
       frontMatrix.setBrightness(animation_steps[animation_step % animation_step_count]);
+      frontMatrix.drawBitmap(0, 0, heart1_bmp, 8, 8, LED_ON);
       frontMatrix.writeDisplay();
       next_step_time = get_next_step_millis();
     }
