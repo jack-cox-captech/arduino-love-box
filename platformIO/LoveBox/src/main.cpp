@@ -7,7 +7,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_LEDBackpack.h>
-
 #include <ArduinoMqttClient.h>
 #include <Bounce2.h>
 
@@ -15,18 +14,14 @@
 
 #include <ArduinoTrace.h>
 
-
 #define DEBUG   1
 
 #define OLED_ADDR 0x3C
 #define LCD_ADDR  0x70
 #define EEPROM_ADDR    0x50
 
-
-
 #include <SD.h>
 
-#include "constants.h"
 #include "messages.h"
 #include "memory_map.h"
 #include "heart_animation.h"
@@ -82,7 +77,8 @@ const unsigned long pollTime = 5000; // 5 seconds
 
 void resetFunc();
 void find_devices();
-void displayMessage(String message);
+void displayAppropriateMessage();
+void displayMessage(Message message);
 void readEEPROM(int deviceaddress, unsigned int eeaddress,  
                  unsigned char* data, unsigned int num_chars);
 void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned int data_len);
@@ -91,6 +87,7 @@ void WiFiConnect();
 void MQTTConnect();
 void onMqttMessage(int messageSize);
 void processMqttMessage(String topic, String message);
+
 void handleNextButton();
 void handlePriorButton();
 
@@ -115,9 +112,9 @@ void setup() {
 //  messageList.saveMessageList(EEPROM_ADDR);
 
 
-  next_button.attach(NEXT_BUTTON_PIN,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT mode
+  next_button.attach(NEXT_BUTTON_PIN,INPUT); // Attach the debouncer to a pin with INPUT mode
   next_button.interval(25); 
-  prior_button.attach(PRIOR_BUTTON_PIN,INPUT_PULLUP); // Attach the debouncer to a pin with INPUT mode
+  prior_button.attach(PRIOR_BUTTON_PIN,INPUT); // Attach the debouncer to a pin with INPUT mode
   prior_button.interval(25); 
   
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
@@ -136,16 +133,7 @@ void setup() {
   // read message from non-volatile storage
   messageList.initializeFromEEPROM(EEPROM_ADDR);
   
-  currentMessage = messageList.getOldestUnreadMessage();
-
-  if (currentMessage.message_length > 0) {
-    displayMessage(currentMessage.message);
-    if (currentMessage.unread) {
-      start_heart_animation(frontMatrix);
-    }
-  } else {
-    displayMessage("No Messages Yet");
-  }
+  displayAppropriateMessage();
 }
 
 void loop() {
@@ -172,10 +160,13 @@ void loop() {
   if (next_button.rose()) {
     // next button pressed, record current message as read and go to next one
     Serial.println("next button pressed");
+    handleNextButton();
+
   }
   if (prior_button.rose()) {
     // prior button pressed record current message as read and go to prior one
     Serial.println("prior button pressed");
+    handlePriorButton();
   }
 
   // push and hold for 2 seconds both buttons at the same time to reset
@@ -184,35 +175,54 @@ void loop() {
       resetFunc();
     }
   }
-
 }
 
 void handleNextButton() {
   markMessageAsRead(currentMessage);
-
-
+  currentMessage = messageList.moveCursorToNextMessage();
+  displayMessage(currentMessage);
+  markMessageAsRead(currentMessage);
 }
 
 void handlePriorButton() {
-
+  markMessageAsRead(currentMessage);
+  currentMessage = messageList.moveCursorToPriorMessage();
+  displayMessage(currentMessage);
+  markMessageAsRead(currentMessage);
 }
 
 void markMessageAsRead(Message msg) {
   if (msg.unread) { // only update if the message is unread
     msg.unread = false;
-    currentMessage.markAsRead(EEPROM_ADDR);
+    msg.markAsRead(EEPROM_ADDR);
   }
 }
 
 
-void displayMessage(String message) {
-  display.clearDisplay();
-  display.setCursor(0,14);
-  display.setTextSize(1);
-  display.setTextWrap(true);
-  display.setTextColor(WHITE, BLACK);
-  display.print(message);
-  display.display();
+void displayAppropriateMessage() {
+  currentMessage = messageList.setCursorToOldestUnreadMessage();
+
+  if (currentMessage.message_length > 0) {
+    displayMessage(currentMessage);
+    if (currentMessage.unread) {
+      start_heart_animation(frontMatrix);
+    }
+  } else {
+    Message msg = Message();
+    msg.message = "No Messages Yet";
+    displayMessage(msg);
+  }
+}
+void displayMessage(Message message) {
+  if (message.real_message) {
+    display.clearDisplay();
+    display.setCursor(0,14);
+    display.setTextSize(1);
+    display.setTextWrap(true);
+    display.setTextColor(WHITE, BLACK);
+    display.print(message.message);
+    display.display();
+  }
 }
 
 
@@ -314,7 +324,7 @@ void processMqttMessage(String topic, String message) {
         Serial.println("Got message");
         messageList.addMessage(doc["message_id"], doc["message_time"], doc["text"]);
         messageList.saveMessageList(EEPROM_ADDR);
-        displayMessage(doc["text"]);
+        displayAppropriateMessage();
         start_heart_animation(frontMatrix);
       }   
 }
@@ -344,11 +354,7 @@ void onMqttMessage(int messageSize) {
     contents += charread;
     Serial.print((char)charread);
   }
-
-  Serial.println();
   processMqttMessage(topic, contents);
-  Serial.println();
-
 }
 
 

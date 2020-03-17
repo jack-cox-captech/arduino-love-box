@@ -1,5 +1,4 @@
 #include <Adafruit_LEDBackpack.h>
-#include "constants.h"
 
 #define AS_STOPPED  0
 #define AS_RUNNING  1
@@ -13,6 +12,74 @@ unsigned long millis_per_step = animation_duration / animation_step_count;
 static const uint8_t PROGMEM
   animation_steps[] =
   { 0, 0, 0, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, 15, 14, 13, 12, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,0,0};
+
+
+static const uint8_t PROGMEM
+  smile_bmp[] =
+  { B00111100,
+    B01000010,
+    B10100101,
+    B10000001,
+    B10100101,
+    B10011001,
+    B01000010,
+    B00111100 },
+  neutral_bmp[] =
+  { B00111100,
+    B01000010,
+    B10100101,
+    B10000001,
+    B10111101,
+    B10000001,
+    B01000010,
+    B00111100 },
+  frown_bmp[] =
+  { B00111100,
+    B01000010,
+    B10100101,
+    B10000001,
+    B10011001,
+    B10100101,
+    B01000010,
+    B00111100 },
+  fullgrid_bmp[] =
+  { B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111,
+    B11111111 },
+  emptygrid_bmp[] =
+  { B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000,
+    B00000000 },
+   heart1_bmp[] = 
+  { B00000000,
+    B01100110,
+    B11111111,
+    B11111111,
+    B01111110,
+    B00111100,
+    B00011000,
+    B00000000 },
+   heart2_bmp[] = 
+  { B00100100,
+    B01111110,
+    B11111111,
+    B11111111,
+    B11111111,
+    B01111110,
+    B00111100,
+    B00011000 }    
+    ;
+
 
 unsigned long get_next_step_millis();
 
