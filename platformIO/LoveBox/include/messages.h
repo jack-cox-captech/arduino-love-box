@@ -39,13 +39,14 @@ class MessageList {
     short cursor = 0;
     MessageList();
 
-    Message setCursorToOldestUnreadMessage();
+    Message *setCursorToFirstMessage();
+    Message *setCursorToOldestUnreadMessage();
 
-    Message messageAtCursor();
+    Message *messageAtCursor();
 
-    Message moveCursorToNextMessage();
+    Message *moveCursorToNextMessage();
 
-    Message moveCursorToPriorMessage();
+    Message *moveCursorToPriorMessage();
 
     Message addMessage(String id, String sendTime, String messageText);
 

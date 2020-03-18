@@ -68,7 +68,7 @@ Bounce prior_button = Bounce();
 String lastMessage = "No Messages Yet";
 
 MessageList messageList = MessageList();
-Message currentMessage;
+Message *currentMessage;
 
 // power management
 
@@ -78,11 +78,12 @@ const unsigned long pollTime = 5000; // 5 seconds
 void resetFunc();
 void find_devices();
 void displayAppropriateMessage();
-void displayMessage(Message message);
+void displayMessage(Message *message);
+void displayEmptyMessage();
 void readEEPROM(int deviceaddress, unsigned int eeaddress,  
                  unsigned char* data, unsigned int num_chars);
 void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned int data_len);
-void markMessageAsRead(Message msg);
+void markMessageAsRead(Message *msg);
 void WiFiConnect();
 void MQTTConnect();
 void onMqttMessage(int messageSize);
@@ -145,7 +146,6 @@ void loop() {
   continue_heart_animation(frontMatrix);
   
   if ((currentTime > (timeOfLastCheck + pollTime)) || (timeOfLastCheck == 0)) { // check every X seconds
-    Serial.println("polling for data");
       timeOfLastCheck = currentTime;
       if (WiFi.status() != WL_CONNECTED) {
         WiFiConnect();
@@ -191,36 +191,48 @@ void handlePriorButton() {
   markMessageAsRead(currentMessage);
 }
 
-void markMessageAsRead(Message msg) {
-  if (msg.unread) { // only update if the message is unread
-    msg.unread = false;
-    msg.markAsRead(EEPROM_ADDR);
+void markMessageAsRead(Message *msg) {
+  if (msg->unread) { // only update if the message is unread
+    msg->unread = false;
+    msg->markAsRead(EEPROM_ADDR);
   }
 }
 
 
 void displayAppropriateMessage() {
   currentMessage = messageList.setCursorToOldestUnreadMessage();
-
-  if (currentMessage.message_length > 0) {
+  if ((currentMessage != NULL) && (currentMessage->message_length > 0)) {
     displayMessage(currentMessage);
-    if (currentMessage.unread) {
+    if (currentMessage->unread) {
       start_heart_animation(frontMatrix);
     }
   } else {
-    Message msg = Message();
-    msg.message = "No Messages Yet";
-    displayMessage(msg);
+    currentMessage = messageList.setCursorToFirstMessage();
+    if (currentMessage != NULL) {
+      displayMessage(currentMessage);
+    } else {
+      displayEmptyMessage();
+    }
   }
 }
-void displayMessage(Message message) {
-  if (message.real_message) {
+
+void displayEmptyMessage() {
+  display.clearDisplay();
+  display.setCursor(0,14);
+  display.setTextSize(1);
+  display.setTextWrap(true);
+  display.setTextColor(WHITE, BLACK);
+  display.print("No Messages Yet");
+  display.display();
+}
+void displayMessage(Message *message) {
+  if (message->real_message) {
     display.clearDisplay();
     display.setCursor(0,14);
     display.setTextSize(1);
     display.setTextWrap(true);
     display.setTextColor(WHITE, BLACK);
-    display.print(message.message);
+    display.print(message->message);
     display.display();
   }
 }

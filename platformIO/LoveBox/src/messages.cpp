@@ -137,7 +137,15 @@ MessageList::MessageList()
     }
 }
 
-Message MessageList::setCursorToOldestUnreadMessage()
+Message *MessageList::setCursorToFirstMessage() {
+    if (current_length > 0) {
+        cursor = 0;
+        return messageAtCursor();
+    } else {
+        return NULL;
+    }
+}
+Message *MessageList::setCursorToOldestUnreadMessage()
 {
     for (int i = max_length - 1; i >= 0; i--)
     {
@@ -147,22 +155,22 @@ Message MessageList::setCursorToOldestUnreadMessage()
             return messageAtCursor();
         }
     }
-    return Message();
+    return NULL;
 }
 
-Message MessageList::messageAtCursor()
+Message *MessageList::messageAtCursor()
 {
-    return messages[cursor];
+    return &messages[cursor];
 }
 
-Message MessageList::moveCursorToNextMessage()
+Message *MessageList::moveCursorToNextMessage()
 {
     cursor = max(0, cursor - 1);
     Serial.print("Move next Cursor is ");Serial.println(cursor);
     return messageAtCursor();
 }
 
-Message MessageList::moveCursorToPriorMessage()
+Message *MessageList::moveCursorToPriorMessage()
 {
     cursor = min(current_length - 1, cursor + 1);
     Serial.print("Move prior Cursor is ");Serial.println(cursor);
