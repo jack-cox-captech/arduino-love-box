@@ -28,8 +28,8 @@
 #include <WiFi.h> // ESP32
 
 
-#define NEXT_BUTTON_PIN   27
-#define PRIOR_BUTTON_PIN  25
+#define NEXT_BUTTON_PIN   25
+#define PRIOR_BUTTON_PIN  27
 
 #endif
 
