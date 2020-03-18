@@ -39,6 +39,8 @@ class MessageList {
     short cursor = 0;
     MessageList();
 
+    int countOfUnreadMessage();
+    
     Message *setCursorToFirstMessage();
     Message *setCursorToOldestUnreadMessage();
 

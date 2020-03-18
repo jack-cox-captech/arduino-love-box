@@ -136,7 +136,16 @@ MessageList::MessageList()
         messages[i] = Message();
     }
 }
-
+int MessageList::countOfUnreadMessage() {
+    int i = 0;
+    int count = 0;
+    for (i = 0; i < current_length; i++)
+    {
+        count += (messages[i].unread ? 1 : 0);
+    }
+    Serial.printf("There are %d unread messages\n", count);
+    return count;
+}
 Message *MessageList::setCursorToFirstMessage() {
     if (current_length > 0) {
         cursor = 0;

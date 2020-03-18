@@ -180,15 +180,16 @@ void loop() {
 void handleNextButton() {
   markMessageAsRead(currentMessage);
   currentMessage = messageList.moveCursorToNextMessage();
-  displayMessage(currentMessage);
   markMessageAsRead(currentMessage);
+  displayMessage(currentMessage);
+
 }
 
 void handlePriorButton() {
   markMessageAsRead(currentMessage);
   currentMessage = messageList.moveCursorToPriorMessage();
-  displayMessage(currentMessage);
   markMessageAsRead(currentMessage);
+  displayMessage(currentMessage);
 }
 
 void markMessageAsRead(Message *msg) {
@@ -198,14 +199,19 @@ void markMessageAsRead(Message *msg) {
   }
 }
 
+void controlAnimation(Message *msg) {
+  if (messageList.countOfUnreadMessage() > 0) {
+    start_heart_animation(frontMatrix);
+  } else {
+    stop_heart_animation(frontMatrix);
+  }
+}
 
 void displayAppropriateMessage() {
+  TRACE();
   currentMessage = messageList.setCursorToOldestUnreadMessage();
   if ((currentMessage != NULL) && (currentMessage->message_length > 0)) {
     displayMessage(currentMessage);
-    if (currentMessage->unread) {
-      start_heart_animation(frontMatrix);
-    }
   } else {
     currentMessage = messageList.setCursorToFirstMessage();
     if (currentMessage != NULL) {
@@ -214,6 +220,7 @@ void displayAppropriateMessage() {
       displayEmptyMessage();
     }
   }
+
 }
 
 void displayEmptyMessage() {
@@ -224,9 +231,10 @@ void displayEmptyMessage() {
   display.setTextColor(WHITE, BLACK);
   display.print("No Messages Yet");
   display.display();
+  controlAnimation(NULL);
 }
 void displayMessage(Message *message) {
-  if (message->real_message) {
+  if ((message != NULL) && (message->real_message)) {
     display.clearDisplay();
     display.setCursor(0,14);
     display.setTextSize(1);
@@ -235,6 +243,7 @@ void displayMessage(Message *message) {
     display.print(message->message);
     display.display();
   }
+  controlAnimation(message);
 }
 
 
@@ -317,6 +326,25 @@ void MQTTConnect() {
   Serial.println("MQTT connect complete");
 }
 
+void sendReceivedMessage(String topic, String id) {
+  TRACE();
+  StaticJsonDocument<200> doc;
+  doc["type"] = "received";
+  doc["message_id"] = id;
+
+  int size = measureJson(doc)+1;
+  Serial.printf("size of received message %d", size);
+  char *buffer = (char *) malloc(size);
+
+  serializeJson(doc, buffer, size);
+
+  mqttClient.beginMessage(topic);
+  mqttClient.print(buffer);
+  mqttClient.endMessage();
+
+  free(buffer);
+
+}
 
 void processMqttMessage(String topic, String message) {
   TRACE();
@@ -336,8 +364,8 @@ void processMqttMessage(String topic, String message) {
         Serial.println("Got message");
         messageList.addMessage(doc["message_id"], doc["message_time"], doc["text"]);
         messageList.saveMessageList(EEPROM_ADDR);
+        sendReceivedMessage(topic, doc["message_id"]);
         displayAppropriateMessage();
-        start_heart_animation(frontMatrix);
       }   
 }
 
@@ -445,7 +473,6 @@ void writeEEPROM(int deviceaddress, unsigned int eeaddress, char* data, unsigned
 void readEEPROM(int deviceaddress, unsigned int eeaddress,  
                  unsigned char* data, unsigned int num_chars) 
 {
-  TRACE();
   unsigned char i=0;
   Wire.beginTransmission(deviceaddress);
   Wire.write((int)(eeaddress >> 8));   // MSB
